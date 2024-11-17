@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html data-bs-theme="dark">
+
+<head>
+	<title>AC controller</title>
+	<meta charset="utf-8">
+	<link rel="icon" href="data:,">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+
+	<style>
+		@import 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css';
+		@import 'https://cdn.jsdelivr.net/npm/bootswatch@5.3.2/dist/flatly/bootstrap.min.css';
+		@import 'https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.min.css';
+	</style>
+
+	<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.min.js"></script>
+</head>
+
+<body>
+	<nav class="navbar bg-primary mb-3" data-bs-theme="dark">
+		<div class="container-fluid">
+			<h1 class="navbar-brand m-0">AC controller</h1>
+			<div class="d-flex">
+				<button class="btn btn-dark" id="btn-save">Valider</button>
+				<button class="btn btn-link ms-2" data-bs-toggle="offcanvas" data-bs-target="#settings">
+					<span class="bi-gear"></span>
+				</button>
+			</div>
+		</div>
+	</nav>
+
+	<div class="offcanvas offcanvas-end" tabindex="-1" id="settings">
+		<div class="offcanvas-header">
+			<h4 class="offcanvas-title">Paramètres</h4>
+			<button class="btn-close" data-bs-dismiss="offcanvas"></button>
+		</div>
+		<div class="offcanvas-body">
+			<form action="/settings/auth" method="POST" class="card mb-5">
+				<div class="card-body">
+					<h5 class="card-title">Authentification</h5>
+					<div class="mb-3">
+						<label for="user" class="form-label">Username</label>
+						<input type="text" class="form-control form-control-sm" id="user" name="user">
+					</div>
+					<div class="mb-3">
+						<label for="pass" class="form-label">Password</label>
+						<input type="text" class="form-control form-control-sm" id="pass" name="pass">
+					</div>
+					<button type="submit" class="btn btn-primary">Sauvegarder</button>
+				</div>
+			</form>
+
+			<a href="/update" class="btn btn-secondary mb-2 w-100">OTA Update</a>
+			<a href="/config.json" download="config.json" class="btn btn-secondary mb-2 w-100">Export config</a>
+		</div>
+	</div>
+
+	<div class="container-fluid">
+		<div class="row">
+			<h-ac class="col-xxl-6" id="ac"></h-ac>
+		</div>
+	</div>
+
+	<template id="calendar-item">
+		<div class="input-group input-group-sm mb-1">
+			<input type="number" min="1" max="23" step="1" id="input-hour"
+				class="form-control form-control-sm flex-grow-0 text-end fw-semibold fs-6" style="width: 70px;">
+			<span class="input-group-text">H</span>
+			<select class="form-control form-control-sm" id="input-mode">
+				<option value="auto">Auto</option>
+				<option value="heat">Heat</option>
+				<option value="cool">Cool</option>
+				<option value="fan">Fan</option>
+				<option value="off">Off</option>
+			</select>
+			<button class="btn btn-sm btn-outline-warning" id="btn-del">
+				<i class="bi-x-lg"></i>
+			</button>
+		</div>
+	</template>
+
+	<template id="calendar">
+		<div class="card">
+			<div class="card-body">
+				<h5 class="card-title" id="title"></h5>
+
+				<div class="progress-stacked mb-2" id="bars"></div>
+				<div class="d-flex flex-column" id="items"></div>
+
+				<button class="btn btn-sm btn-outline-primary w-100" id="btn-add">
+					<i class="bi-plus-lg"></i>
+				</button>
+			</div>
+		</div>
+	</template>
+
+	<template id="ac">
+		<div class="card shadow mb-3">
+			<div class="card-body">
+				<h4 class="card-title" id="title"></h4>
+				<div class="badge rounded-pill text-bg-primary position-absolute" id="status" style="top:1em;right:1em;"></div>
+
+				<div class="container-fluid px-0 mb-3">
+					<div class="row">
+						<div class="col-md-3 col-6">
+							<label for="input-temp" class="form-label">Température</label>
+							<div class="input-group w-auto">
+								<button class="btn btn-danger fs-5 py-1 px-2" id="btn-temp-minus">
+									<i class="bi-dash-circle-fill"></i>
+								</button>
+								<input type="number" id="input-temp" class="form-control text-center" style="width: 70px;">
+								<button class="btn btn-info fs-5 py-1 px-2" id="btn-temp-plus">
+									<i class="bi-plus-circle-fill"></i>
+								</button>
+							</div>
+						</div>
+						<div class="col-md-3 col-6 position-relative">
+							<div class="badge rounded-pill border position-absolute" style="top:5px;right:5px;" id="fan-speed"></div>
+							<label for="input-fan" class="form-label">Ventilateur</label>
+							<input type="range" class="form-range" style="height: 40px;" min="0" max="4" step="1" id="input-fan">
+						</div>
+
+						<div class="col-md-6 d-flex">
+							<div class="align-self-end mt-3 mb-1 btn-group d-flex w-100">
+								<input type="radio" class="btn-check" name="mode" value="schedule" id="mode-schedule" checked>
+								<label class="btn btn-outline-primary" for="mode-schedule">Schedule</label>
+								<input type="radio" class="btn-check" name="mode" value="auto" id="mode-auto" checked>
+								<label class="btn btn-outline-success" for="mode-auto">Auto</label>
+								<input type="radio" class="btn-check" name="mode" value="heat" id="mode-heat">
+								<label class="btn btn-outline-danger" for="mode-heat">Heat</label>
+								<input type="radio" class="btn-check" name="mode" value="cool" id="mode-cool">
+								<label class="btn btn-outline-info" for="mode-cool">Cool</label>
+								<input type="radio" class="btn-check" name="mode" value="fan" id="mode-fan">
+								<label class="btn btn-outline-light" for="mode-fan">Fan</label>
+								<input type="radio" class="btn-check" name="mode" value="off" id="mode-off">
+								<label class="btn btn-outline-dark" for="mode-off">Off</label>
+							</div>
+						</div>
+					</div>
+				</div>
+
+				<div class="container-fluid px-0">
+					<div class="row g-2">
+						<div class="col-md-6">
+							<h-calendar title="Semaine" id="weekday"></h-calendar>
+						</div>
+						<div class="col-md-6">
+							<h-calendar title="Weekend" id="weekend"></h-calendar>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	</template>
+
+	<script type="module">
+		const CONFIG_URL = '/config.json';
+		const STATUS_URL = '/status.json';
+
+		class AbstractElement extends HTMLElement {
+			constructor(templateId) {
+				super();
+				this.shadow = this.attachShadow({ mode: 'open' });
+
+				const stylesheet = document.querySelector('style');
+				this.shadow.appendChild(document.importNode(stylesheet, true));
+
+				const template = document.querySelector(`template#${templateId}`);
+				this.shadow.appendChild(document.importNode(template.content, true));
+			}
+
+			get(selector) {
+				return this.shadow.querySelector(selector);
+			}
+
+			on(event, selector, cb) {
+				this.shadow.querySelectorAll(selector).forEach(e => e.addEventListener(event, cb));
+			}
+		}
+
+		class CalendarItem extends AbstractElement {
+			constructor(calendar, { hour, mode }) {
+				super('calendar-item');
+				this.style.order = `${hour}`
+
+				this.calendar = calendar;
+				this.iHour = this.get('#input-hour');
+				this.iMode = this.get('#input-mode');
+
+				this.on('click', '#btn-del', () => this.calendar.removeItem(this));
+				this.on('change', '#input-hour', () => {
+					this.style.order = `${this.iHour.value}`;
+					this.calendar.renderBars();
+				});
+				this.on('change', '#input-mode', () => this.calendar.renderBars());
+
+				this.iHour.value = hour;
+				this.iMode.value = mode;
+				this.iHour.disabled = hour === 0;
+			}
+
+			getValue() {
+				return { hour: this.iHour.valueAsNumber, mode: this.iMode.value };
+			}
+		}
+
+		class Calendar extends AbstractElement {
+			static COLORS = {
+				auto: 'bg-success',
+				heat: 'bg-danger',
+				cool: 'bg-info',
+				fan: 'bg-light',
+				off: 'bg-dark',
+			};
+
+			constructor() {
+				super('calendar');
+				this.get('#title').innerText = this.getAttribute('title');
+
+				this.items = this.get('#items');
+				this.bars = this.get('#bars');
+				this.water = !!this.getAttribute('water');
+
+				this.on('click', '#btn-add', () => this.addItem());
+			}
+
+			addItem(hour, mode) {
+				hour = hour ?? Math.min(23, Math.max(-1, ...[...this.items.children].map(item => item.getValue().hour)) + 1);
+				mode = mode ?? 'on';
+				this.items.appendChild(new CalendarItem(this, { hour, mode }, this.water));
+				this.renderBars();
+			}
+
+			removeItem(item) {
+				this.items.removeChild(item);
+				this.renderBars();
+			}
+
+			getValue() {
+				return [...this.items.children].map(item => item.getValue()).sort((a, b) => a.hour - b.hour);
+			}
+
+			setValue(value) {
+				while (this.items.firstChild) this.items.removeChild(this.items.firstChild);
+				value.forEach(({ hour, mode }) => this.addItem(parseInt(hour, 10), mode));
+				this.renderBars();
+			}
+
+			renderBars() {
+				const value = this.getValue();
+				let html = '';
+				for (let i = 0; i < value.length; i++) {
+					const start = value[i].hour;
+					const end = i === value.length - 1 ? 24 : value[i + 1].hour;
+					html += `
+<div class="progress" style="width: ${100 * (end - start) / 24}%">
+	<div class="progress-bar ${i > 0 ? 'border-start' : ''} ${Calendar.COLORS[value[i].mode]}"></div>
+</div>
+					`;
+				}
+				this.bars.innerHTML = html;
+			}
+		}
+
+		class Ac extends AbstractElement {
+			static LABELS = {
+				auto: 'Auto',
+				heat: 'Heat',
+				cool: 'Cool',
+				fan: 'Fan',
+				off: 'Off',
+			};
+			static MIN = 16;
+			static MAX = 30;
+
+			constructor() {
+				super('ac');
+
+				this.weekday = this.get('#weekday');
+				this.weekend = this.get('#weekend');
+				this.temp = this.get('#input-temp');
+				this.fan = this.get('#input-fan');
+				this.fanLabel = this.get('#fan-speed');
+
+				this.temp.min = Ac.MIN;
+				this.temp.max = Ac.MAX;
+
+				this.on('click', '#btn-temp-minus', () => {
+					this.temp.value = Math.max(Ac.MIN, this.temp.valueAsNumber-1);
+					debounceSave();
+				});
+				this.on('click', '#btn-temp-plus', () => {
+					this.temp.value = Math.min(Ac.MAX, this.temp.valueAsNumber+1);
+					debounceSave();
+				});
+				this.on('input', '#input-fan', () => this.fanLabel.innerText = this.fan.valueAsNumber || 'auto');
+				this.on('change', '#input-fan', debounceSave);
+				this.on('change', '[name=mode]', debounceSave);
+			}
+
+			getValue() {
+				return {
+					mode: this.get('[name=mode]:checked').value,
+					temp: this.temp.valueAsNumber,
+					fan: this.fan.valueAsNumber,
+					weekday: this.weekday.getValue(),
+					weekend: this.weekend.getValue(),
+				};
+			}
+
+			setValue({ name, mode, temp, fan, weekday, weekend }) {
+				this.get('#title').innerText = name;
+				this.get('[name=mode]:checked').checked = false;
+				this.get(`[name=mode][value=${mode}]`).checked = true;
+				this.temp.value = temp;
+				this.fan.value = fan;
+				this.fan.dispatchEvent(new Event('input'));
+				this.weekday.setValue(weekday);
+				this.weekend.setValue(weekend);
+			}
+
+			setStatus(status) {
+				this.get('#status').innerText = Ac.LABELS[status];
+			}
+		}
+
+		customElements.define('h-calendar-item', CalendarItem);
+		customElements.define('h-calendar', Calendar);
+		customElements.define('h-ac', Ac);
+
+		async function loadStatus() {
+			try {
+				const result = await fetch(STATUS_URL);
+				if (result.status !== 200) {
+					throw new Error();
+				}
+				return await result.json();
+			} catch (e) {
+				alert(`Failed to load ${STATUS_URL}`);
+			}
+		}
+
+		async function loadConfig() {
+			try {
+				const result = await fetch(CONFIG_URL);
+				if (result.status !== 200) {
+					throw new Error();
+				}
+				return await result.json();
+			} catch (e) {
+				alert(`Failed to load ${CONFIG_URL}`);
+			}
+		}
+
+		async function saveConfig(config) {
+			try {
+				const result = await fetch(CONFIG_URL, {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify(config),
+				});
+				if (result.status !== 200) {
+					throw new Error();
+				}
+			} catch (e) {
+				alert(`Failed to post to ${CONFIG_URL}`);
+			}
+		}
+
+		let statusTimeout;
+		async function updateStatus() {
+			clearTimeout(statusTimeout);
+
+			const status = await loadStatus();
+
+			document.querySelector('#ac').setStatus(status.ac);
+
+			statusTimeout = setTimeout(updateStatus, 10000);
+		}
+
+		function save() {
+			saveConfig({
+				ac: document.querySelector('#ac').getValue(),
+			});
+
+			setTimeout(updateStatus, 1000);
+		}
+
+		let saveTimeout;
+		function debounceSave() {
+			if (saveTimeout) {
+				clearTimeout(saveTimeout);
+			}
+			saveTimeout = setTimeout(save, 2000);
+		}
+		
+		document.querySelector('#btn-save').addEventListener('click', save);
+
+		(async () => {
+			const config = await loadConfig();
+			document.querySelector('#ac').setValue(config.ac);
+			updateStatus();
+		})();
+	</script>
+</body>
+
+</html>
